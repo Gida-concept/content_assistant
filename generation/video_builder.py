@@ -19,7 +19,7 @@ def run_ffmpeg_command(command: list, step_name: str, timeout: int = 180) -> boo
         stdout, stderr = process.communicate(timeout=timeout)
         if process.returncode != 0:
             logging.error(f"--- FFmpeg Step '{step_name}' FAILED! ---")
-            logging.error(f"Command: {' '.join(command)}")
+            logging.error(f"Command: {' '.join(map(str, command))}")
             logging.error(f"FFmpeg stderr:\n{stderr}")
             return False
         logging.info(f"FFmpeg Step '{step_name}' successful.")
@@ -43,7 +43,8 @@ def build_video(audio_path: Path, subtitles_path: Path, unique_id: str) -> Path 
     final_video_path = config.TEMP_VIDEOS_DIR / f"final_video_{unique_id}.mp4"
     subtitled_video_path.parent.mkdir(parents=True, exist_ok=True)
     
-    subtitle_style = f"Fontfile={config.CAPTION_FONT_FILE}:FontSize={config.CAPTION_FONT_SIZE}:PrimaryColour=&H00FFFFFF:BorderStyle=1:Outline=2:Shadow=1:Alignment=2:MarginV={int(config.VIDEO_HEIGHT * 0.15)}"
+    # Corrected force_style syntax with commas instead of colons
+    subtitle_style = f"Fontfile='{config.CAPTION_FONT_FILE}', Fontsize={config.CAPTION_FONT_SIZE}, PrimaryColour=&H00FFFFFF, BorderStyle=1, Outline=2, Shadow=1, Alignment=2, MarginV={int(config.VIDEO_HEIGHT * 0.15)}"
 
     # --- STEP 1: Burn subtitles onto the background video ---
     command1 = [
@@ -81,5 +82,6 @@ def build_video(audio_path: Path, subtitles_path: Path, unique_id: str) -> Path 
 
     logging.info(f"Final video successfully created at: {final_video_path}")
     # Optional: Clean up the intermediate subtitled file
-    subtitled_video_path.unlink()
+    if subtitled_video_path.exists():
+        subtitled_video_path.unlink()
     return final_video_path
