@@ -1,6 +1,7 @@
 # project/generation/captions.py
 
 import logging
+import json
 from pathlib import Path
 
 # Import project-specific modules
@@ -11,8 +12,6 @@ from groq import Groq
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [CaptionsGenerator] - %(message)s')
 
 # --- Groq Client Initialization ---
-# Re-initializing the client here for modularity. This allows this script
-# to be run independently for testing.
 try:
     if not config.GROQ_API_KEY or config.GROQ_API_KEY == "YOUR_GROQ_API_KEY_HERE":
         raise ValueError("GROQ_API_KEY is not configured.")
@@ -22,17 +21,28 @@ except (ValueError, Exception) as e:
     logging.error(f"Failed to initialize Groq client: {e}")
     groq_client = None
 
+def _format_time(seconds: float) -> str:
+    """Formats seconds into SRT time format HH:MM:SS,ms"""
+    millis = int((seconds % 1) * 1000)
+    seconds = int(seconds)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
+
+def _to_srt(segments: list) -> str:
+    """Converts Whisper's verbose_json segments into an SRT formatted string."""
+    srt_content = ""
+    for i, segment in enumerate(segments, 1):
+        start_time = _format_time(segment['start'])
+        end_time = _format_time(segment['end'])
+        text = segment['text'].strip()
+        srt_content += f"{i}\n{start_time} --> {end_time}\n{text}\n\n"
+    return srt_content
 
 def generate_captions(audio_file_path: Path, unique_id: str) -> Path | None:
     """
-    Transcribes an audio file using Groq's Whisper model and saves it as an .srt file.
-
-    Args:
-        audio_file_path: The Path object pointing to the generated .wav audio file.
-        unique_id: The unique identifier for the current video job, for the filename.
-
-    Returns:
-        A Path object to the generated .srt subtitle file on success, otherwise None.
+    Transcribes an audio file using Groq's Whisper model (verbose_json)
+    and manually builds and saves an .srt file.
     """
     if not groq_client:
         logging.error("Cannot generate captions: Groq client is not available.")
@@ -45,70 +55,47 @@ def generate_captions(audio_file_path: Path, unique_id: str) -> Path | None:
     logging.info(f"Starting caption generation for audio file: {audio_file_path.name}")
 
     try:
-        # Define the output path in the temporary subtitles directory
         output_filename = f"subtitles_{unique_id}.srt"
-        output_path = config.TEMP_SUBTITLES_DIR / output_filename
-
-        # Ensure the temporary directory exists
+        output_path = config.TEMP_SUBTITLES_DIR / output_path.name
         config.TEMP_SUBTITLES_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Open the audio file in binary read mode for the API
         with open(audio_file_path, "rb") as audio_file:
             logging.info("Uploading audio to Groq Whisper API for transcription...")
-
-            # Requesting 'srt' format directly from the API is highly efficient.
-            # whisper-large-v3 is the most accurate model.
             transcription = groq_client.audio.transcriptions.create(
                 file=(audio_file_path.name, audio_file.read()),
                 model="whisper-large-v3",
-                response_format="srt"
+                response_format="verbose_json",
+                timestamp_granularities=["segment"]
             )
-
-        # The API returns the complete SRT content as a single string
-        srt_content = transcription
-
-        # Write the SRT content to the output file
+        
+        # The transcription object is now a JSON-like object, not a raw string
+        srt_content = _to_srt(transcription.segments)
+        
         output_path.write_text(srt_content, encoding='utf-8')
 
-        logging.info(f"Successfully saved SRT captions to: {output_path}")
+        logging.info(f"Successfully built and saved SRT captions to: {output_path}")
         return output_path
 
     except Exception as e:
         logging.error(f"An error occurred during Whisper transcription: {e}")
         return None
 
-
 # --- Standalone Test Block ---
 if __name__ == '__main__':
-    # This block tests the caption generation by first creating a sample audio file.
-    from generation.tts import generate_tts_audio  # Import the TTS function
-
+    from generation.tts import generate_tts_audio
     print("Running captions.py in standalone mode for testing...")
-    print("This will first generate a test audio file, then transcribe it.")
-
-    # Create required directories for the test
+    
     for directory in config.REQUIRED_DIRS:
         directory.mkdir(parents=True, exist_ok=True)
-
-    test_script = "This is a test of the caption generation system. The Whisper API should accurately transcribe this sentence into an SRT file, complete with timing information. This ensures the entire captioning pipeline is functional."
+        
+    test_script = "This tests the manual SRT generation from verbose json."
     test_id = "standalone_caption_test_001"
 
-    # 1. Generate a test audio file first
     audio_path = generate_tts_audio(test_script, test_id)
-
     if audio_path:
-        print(f"Test audio generated: {audio_path}")
-        # 2. Now, generate captions from that audio file
         captions_path = generate_captions(audio_path, test_id)
-
         if captions_path and captions_path.exists():
-            print("\n✅ --- CAPTIONS GENERATED SUCCESSFULLY --- ✅")
+            print(f"\n✅ --- CAPTIONS GENERATED SUCCESSFULLY --- ✅")
             print(f"SRT file saved at: {captions_path}")
             print("\n--- SRT File Content ---")
             print(captions_path.read_text())
-        else:
-            print("\n❌ --- CAPTION GENERATION FAILED --- ❌")
-            print("Check logs for errors. Ensure your Groq API key is valid.")
-    else:
-        print("\n❌ --- FAILED TO GENERATE TEST AUDIO --- ❌")
-        print("Cannot proceed with caption test. Check the TTS module first.")
