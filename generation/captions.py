@@ -56,7 +56,7 @@ def generate_captions(audio_file_path: Path, unique_id: str) -> Path | None:
 
     try:
         output_filename = f"subtitles_{unique_id}.srt"
-        output_path = config.TEMP_SUBTITLES_DIR / output_path.name
+        output_path = config.TEMP_SUBTITLES_DIR / output_filename # This is the corrected line
         config.TEMP_SUBTITLES_DIR.mkdir(parents=True, exist_ok=True)
 
         with open(audio_file_path, "rb") as audio_file:
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     for directory in config.REQUIRED_DIRS:
         directory.mkdir(parents=True, exist_ok=True)
         
-    test_script = "This tests the manual SRT generation from verbose json."
+    test_script = "This tests the manual SRT generation from verbose json. This is the corrected file."
     test_id = "standalone_caption_test_001"
 
     audio_path = generate_tts_audio(test_script, test_id)
@@ -99,3 +99,7 @@ if __name__ == '__main__':
             print(f"SRT file saved at: {captions_path}")
             print("\n--- SRT File Content ---")
             print(captions_path.read_text())
+        else:
+            print("\n❌ --- CAPTION GENERATION FAILED --- ❌")
+    else:
+        print("\n❌ --- FAILED TO GENERATE TEST AUDIO --- ❌")
