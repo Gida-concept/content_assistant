@@ -2,7 +2,9 @@
 
 import logging
 import soundfile as sf
+import numpy as np
 from pathlib import Path
+import re
 
 # Import project-specific modules
 import config
@@ -28,9 +30,17 @@ if KittenTTS:
         logging.error(f"FATAL: Failed to load KittenTTS model. Error: {e}")
         tts_model = None
 
+def split_into_sentences(text: str) -> list:
+    """Split text into sentences, respecting periods, exclamation marks, and question marks."""
+    # Use regex to split on sentence endings while preserving the punctuation
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    # Filter out empty strings
+    return [s.strip() for s in sentences if s.strip()]
+
 def generate_tts_audio(script_text: str, unique_id: str) -> Path | None:
     """
     Converts a text script into a .wav audio file using the pre-loaded KittenTTS model.
+    Processes text in sentence chunks to avoid ONNX errors with long text.
 
     Args:
         script_text: The text content to be converted to speech.
@@ -50,25 +60,36 @@ def generate_tts_audio(script_text: str, unique_id: str) -> Path | None:
         output_path = config.TEMP_AUDIO_DIR / output_filename
         config.TEMP_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Preprocess text for KittenTTS compatibility
+        # Preprocess and limit text length
         max_chars = 5000
         processed_text = script_text[:max_chars] if len(script_text) > max_chars else script_text
-        
-        # Clean the text: remove newlines, normalize spaces, and remove characters
-        # that might confuse the underlying ONNX model.
         processed_text = processed_text.replace('\n', ' ').replace('\r', '')
         processed_text = ' '.join(processed_text.split())
         
-        logging.info(f"Processing {len(processed_text)} characters for TTS with voice ID: '{config.TTS_VOICE_ID}'...")
-
-        # Generate the raw audio data from the preprocessed script text
-        audio_data = tts_model.generate(processed_text, voice=config.TTS_VOICE_ID)
-
-        if audio_data is None:
-            raise ValueError("KittenTTS model returned no audio data.")
-
-        logging.info("Audio data generated. Writing to .wav file...")
-        sf.write(output_path, audio_data, config.TTS_SAMPLE_RATE)
+        # Split into sentences to avoid ONNX model errors with long text
+        sentences = split_into_sentences(processed_text)
+        logging.info(f"Split script into {len(sentences)} sentences for processing.")
+        
+        # Generate audio for each sentence
+        audio_chunks = []
+        for i, sentence in enumerate(sentences, 1):
+            logging.info(f"Generating audio for sentence {i}/{len(sentences)}...")
+            audio_chunk = tts_model.generate(sentence, voice=config.TTS_VOICE_ID)
+            if audio_chunk is None or len(audio_chunk) == 0:
+                logging.warning(f"Empty audio returned for sentence {i}, skipping.")
+                continue
+            audio_chunks.append(audio_chunk)
+        
+        if not audio_chunks:
+            raise ValueError("No audio data was generated from any sentence.")
+        
+        # Concatenate all audio chunks
+        logging.info("Concatenating audio chunks...")
+        final_audio = np.concatenate(audio_chunks)
+        
+        # Save the final audio
+        logging.info("Writing final audio to .wav file...")
+        sf.write(output_path, final_audio, config.TTS_SAMPLE_RATE)
 
         logging.info(f"Successfully saved TTS audio to: {output_path}")
         return output_path
@@ -83,8 +104,8 @@ if __name__ == '__main__':
     for directory in config.REQUIRED_DIRS:
         directory.mkdir(parents=True, exist_ok=True)
 
-    test_script = "This is a test of the Kitten Text to Speech engine. This version includes text preprocessing to remove newlines and extra spaces, which should prevent ONNX model errors."
-    test_id = "standalone_test_001"
+    test_script = "This is a test. The system splits text into sentences. Each sentence is processed separately. This prevents ONNX errors."
+    test_id = "standalone_test_chunking"
     
     audio_path = generate_tts_audio(test_script, test_id)
 
@@ -93,4 +114,3 @@ if __name__ == '__main__':
         print(f"File saved at: {audio_path}")
     else:
         print(f"\n❌ --- TTS AUDIO GENERATION FAILED --- ❌")
-        print("Check logs for errors.")
