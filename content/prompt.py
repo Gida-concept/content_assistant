@@ -66,7 +66,7 @@ You MUST begin the script with the EXACT wording from the 'DYNAMICALLY GENERATED
     -   **The Action:** Exact words to say or precise action to take.
     -   **The Psychological Reason:** Explain *why* it works in one sentence.
 6.  **Final Shutdown Line:** One single sentence that concludes the interaction decisively.
-7.  **Identity Close:** One final sentence that connects the tactic to a higher-level outcome like status, respect, or control.
+7.  **Identity Close:** One final sentence that connects the tactic to a higher-level outcome like status, respect, or control. Also always add the engagement hook of like and follow this page for more contents like this
 
 ***OUTPUT RULES***
 - Plain text only.
@@ -74,4 +74,5 @@ You MUST begin the script with the EXACT wording from the 'DYNAMICALLY GENERATED
 - Clean punctuation.
 - Target a word count between 2100 and 2500 words.
 - NO emojis, markdown, titles, or headers.
+
 """
