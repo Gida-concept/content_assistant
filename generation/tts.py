@@ -60,7 +60,12 @@ def generate_tts_audio(script_text: str, unique_id: str) -> Path | None:
         logging.info(f"Generating audio with voice ID: '{config.TTS_VOICE_ID}'...")
 
         # Generate the raw audio data from the script text
-        audio_data = tts_model.generate(script_text, voice=config.TTS_VOICE_ID)
+        # Truncate extremely long scripts to prevent ONNX errors
+            max_chars = 5000  # Limit to 5000 characters (allows full 3-5 minute scripts)
+            truncated_text = script_text[:max_chars] if len(script_text) > max_chars else script_text
+            logging.info(f"Processing {len(truncated_text)} characters for TTS...")
+           
+            audio_data = tts_model.generate(truncated_text, voice=config.TTS_VOICE_ID)
 
         if audio_data is None:
             raise ValueError("KittenTTS model returned no audio data.")
@@ -106,4 +111,5 @@ if __name__ == '__main__':
         print("Check the logs for errors. Common issues include:")
         print("- KittenTTS or soundfile not being installed correctly.")
         print("- An invalid model name or voice ID in config.py.")
+
         
