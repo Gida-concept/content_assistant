@@ -29,7 +29,7 @@ TEMP_VIDEOS_DIR = TEMP_DIR / "videos"
 
 # --- Content Generation Settings ---
 # Groq model for script generation
-LLM_MODEL = "llama-3.1-70b-versatile"
+LLM_MODEL = "llama-3.3-70b-versatile"
 
 # --- Kitten TTS (Local Library) Configuration ---
 # The model name to be loaded by the KittenTTS library
@@ -65,4 +65,5 @@ REQUIRED_DIRS = [
     TEMP_DIR, TEMP_AUDIO_DIR, TEMP_SUBTITLES_DIR, TEMP_VIDEOS_DIR, CONTENT_DIR,
 
 ]
+
 
