@@ -50,18 +50,19 @@ def generate_tts_audio(script_text: str, unique_id: str) -> Path | None:
         output_path = config.TEMP_AUDIO_DIR / output_filename
         config.TEMP_AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Truncate extremely long scripts to prevent potential ONNX errors
-        max_chars = 5000  # Generous limit for 3-5 minute scripts
-        if len(script_text) > max_chars:
-            logging.warning(f"Script too long ({len(script_text)} chars). Truncating to {max_chars} chars.")
-            truncated_text = script_text[:max_chars]
-        else:
-            truncated_text = script_text
+        # Preprocess text for KittenTTS compatibility
+        max_chars = 5000
+        processed_text = script_text[:max_chars] if len(script_text) > max_chars else script_text
         
-        logging.info(f"Processing {len(truncated_text)} characters for TTS with voice ID: '{config.TTS_VOICE_ID}'...")
+        # Clean the text: remove newlines, normalize spaces, and remove characters
+        # that might confuse the underlying ONNX model.
+        processed_text = processed_text.replace('\n', ' ').replace('\r', '')
+        processed_text = ' '.join(processed_text.split())
+        
+        logging.info(f"Processing {len(processed_text)} characters for TTS with voice ID: '{config.TTS_VOICE_ID}'...")
 
-        # Generate the raw audio data from the script text
-        audio_data = tts_model.generate(truncated_text, voice=config.TTS_VOICE_ID)
+        # Generate the raw audio data from the preprocessed script text
+        audio_data = tts_model.generate(processed_text, voice=config.TTS_VOICE_ID)
 
         if audio_data is None:
             raise ValueError("KittenTTS model returned no audio data.")
@@ -82,7 +83,7 @@ if __name__ == '__main__':
     for directory in config.REQUIRED_DIRS:
         directory.mkdir(parents=True, exist_ok=True)
 
-    test_script = "This is a test of the Kitten Text to Speech engine. This will test the corrected file for indentation errors."
+    test_script = "This is a test of the Kitten Text to Speech engine. This version includes text preprocessing to remove newlines and extra spaces, which should prevent ONNX model errors."
     test_id = "standalone_test_001"
     
     audio_path = generate_tts_audio(test_script, test_id)
