@@ -44,11 +44,13 @@ def build_video(audio_path: Path, subtitles_path: Path, unique_id: str) -> Path 
         "-i", str(audio_path),
         "-i", str(background_music_path),
         "-filter_complex", (
+            # Video processing: crop, scale, burn subtitles
             f"[0:v]crop=ih*9/16:ih,scale={config.VIDEO_WIDTH}:{config.VIDEO_HEIGHT},setsar=1,"
             f"subtitles={subtitles_path}:force_style='{subtitle_style}'[v];"
-            f"[1:a]volume={config.VOICE_VOLUME}[voice];"
-            f"[2:a]volume={config.MUSIC_VOLUME}[music];"
-            "[voice][music]amix=inputs=2:duration=first[a]"
+            # Audio processing: Resample to 44.1kHz, convert to stereo, apply volume, then mix
+            f"[1:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={config.VOICE_VOLUME}[voice];"
+            f"[2:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={config.MUSIC_VOLUME}[music];"
+            "[voice][music]amix=inputs=2:duration=first:dropout_transition=2[a]"
         ),
         "-map", "[v]",
         "-map", "[a]",
@@ -58,7 +60,7 @@ def build_video(audio_path: Path, subtitles_path: Path, unique_id: str) -> Path 
         str(final_video_path)
     ]
 
-    # Log the exact command
+    # Log the exact command for debugging
     logging.info("=" * 80)
     logging.info("FFMPEG COMMAND:")
     logging.info(" ".join(str(c) for c in command))
@@ -74,7 +76,7 @@ def build_video(audio_path: Path, subtitles_path: Path, unique_id: str) -> Path 
         )
         stdout, stderr = process.communicate(timeout=180)
 
-        # Save FFmpeg output to a log file for inspection
+        # Save FFmpeg output to a log file
         log_file = config.TEMP_DIR / f"ffmpeg_log_{unique_id}.txt"
         with open(log_file, 'w') as f:
             f.write("=== FFMPEG STDOUT ===\n")
@@ -83,18 +85,19 @@ def build_video(audio_path: Path, subtitles_path: Path, unique_id: str) -> Path 
             f.write(stderr)
         logging.info(f"FFmpeg output saved to: {log_file}")
 
-        # Print stderr to our log (this is where FFmpeg prints progress and errors)
+        # Print last 30 lines of stderr for quick diagnosis
         if stderr:
-            logging.info("FFmpeg stderr output:")
-            for line in stderr.split('\n')[-30:]:  # Print last 30 lines
-                logging.info(f"  {line}")
+            logging.info("FFmpeg stderr output (last 30 lines):")
+            for line in stderr.split('\n')[-30:]:
+                if line.strip():
+                    logging.info(f"  {line}")
 
         if process.returncode != 0:
             logging.error(f"FFmpeg FAILED with return code: {process.returncode}")
             logging.error("Full error output saved to log file above.")
             return None
         
-        # Verify the output file exists and has a reasonable size
+        # Verify output file
         if not final_video_path.exists():
             logging.error("FFmpeg reported success but output file was not created!")
             return None
@@ -102,7 +105,7 @@ def build_video(audio_path: Path, subtitles_path: Path, unique_id: str) -> Path 
         file_size = final_video_path.stat().st_size
         logging.info(f"Output video size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)")
         
-        if file_size < 100000:  # Less than 100KB is suspiciously small
+        if file_size < 100000:
             logging.warning(f"Output file is very small ({file_size} bytes). Video may be corrupted.")
         
         logging.info(f"Final video successfully created at: {final_video_path}")
