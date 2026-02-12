@@ -11,7 +11,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [T
 try:
     from piper.voice import PiperVoice
     logging.info(f"Loading Piper TTS model from: {config.TTS_MODEL_PATH}")
-    voice = PiperVoice.load(config.TTS_MODEL_PATH)
+    # Use from_onnx, not load
+    voice = PiperVoice.from_onnx(config.TTS_MODEL_PATH, config_path=f"{config.TTS_MODEL_PATH}.json")
     logging.info("Piper TTS model loaded successfully.")
 except Exception as e:
     logging.error(f"FATAL: Failed to load Piper model: {e}")
@@ -32,8 +33,11 @@ def generate_tts_audio(script_text: str, unique_id: str) -> Path | None:
         processed_text = ' '.join(script_text.split()).replace('\n', ' ').strip()
         logging.info(f"Processing {len(processed_text)} characters for TTS...")
 
-        # Generate audio with Piper
+        # Generate audio with Piper, setting wave parameters correctly
         with wave.open(str(output_path), "wb") as wav_file:
+            wav_file.setnchannels(voice.config.num_channels)
+            wav_file.setsampwidth(voice.config.sample_width)
+            wav_file.setframerate(voice.config.sample_rate)
             voice.synthesize(processed_text, wav_file)
 
         logging.info(f"Successfully saved TTS audio to: {output_path}")
