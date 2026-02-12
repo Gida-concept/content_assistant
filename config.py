@@ -19,7 +19,7 @@ TEMP_AUDIO_DIR = TEMP_DIR / "audio"
 TEMP_SUBTITLES_DIR = TEMP_DIR / "subtitles"
 TEMP_VIDEOS_DIR = TEMP_DIR / "videos"
 
-LLM_MODEL = "llama3-8b-8192"
+LLM_MODEL = "llama3.3-70b-versatile"
 
 # --- Kitten TTS (Local Library) Configuration ---
 TTS_MODEL_NAME = "KittenML/kitten-tts-nano-0.2"
@@ -43,3 +43,4 @@ REQUIRED_DIRS = [
     ASSETS_DIR, BACKGROUND_VIDEOS_DIR, BACKGROUND_MUSIC_DIR,
     TEMP_DIR, TEMP_AUDIO_DIR, TEMP_SUBTITLES_DIR, TEMP_VIDEOS_DIR, CONTENT_DIR,
 ]
+
