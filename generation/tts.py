@@ -1,33 +1,14 @@
 # project/generation/tts.py
 import logging
-import wave
+import subprocess
 from pathlib import Path
 import config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [TTSGenerator] - %(message)s')
 
-# --- Load Piper TTS using the correct, updated API ---
-try:
-    from piper.voice import PiperVoice
-    
-    # The correct way to load the model
-    logging.info(f"Loading Piper TTS model from: {config.TTS_MODEL_PATH}")
-    voice = PiperVoice(
-        onnx_path=config.TTS_MODEL_PATH,
-        config_path=f"{config.TTS_MODEL_PATH}.json"
-    )
-    logging.info("Piper TTS model loaded successfully.")
-
-except Exception as e:
-    logging.error(f"FATAL: Failed to load Piper model: {e}")
-    voice = None
-
 def generate_tts_audio(script_text: str, unique_id: str) -> Path | None:
-    if not voice:
-        logging.error("Cannot generate audio: Piper TTS model is not available.")
-        return None
-
     logging.info(f"Starting TTS generation for ID: {unique_id}")
+    
     try:
         output_filename = f"audio_{unique_id}.wav"
         output_path = config.TEMP_AUDIO_DIR / output_filename
@@ -37,8 +18,32 @@ def generate_tts_audio(script_text: str, unique_id: str) -> Path | None:
         processed_text = ' '.join(script_text.split()).replace('\n', ' ').strip()
         logging.info(f"Processing {len(processed_text)} characters for TTS...")
 
-        # Piper's synthesize method now directly writes to a file path
-        voice.synthesize(processed_text, str(output_path))
+        # Call Piper command-line tool
+        command = [
+            "/opt/piper/piper",
+            "--model", config.TTS_MODEL_PATH,
+            "--output_file", str(output_path)
+        ]
+        
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Send the text to piper via stdin
+        stdout, stderr = process.communicate(input=processed_text, timeout=60)
+        
+        if process.returncode != 0:
+            logging.error(f"Piper command failed with return code {process.returncode}")
+            logging.error(f"Stderr: {stderr}")
+            return None
+        
+        if not output_path.exists():
+            logging.error("Piper did not create the output file.")
+            return None
 
         logging.info(f"Successfully saved TTS audio to: {output_path}")
         return output_path
