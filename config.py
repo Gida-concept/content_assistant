@@ -21,10 +21,9 @@ TEMP_VIDEOS_DIR = TEMP_DIR / "videos"
 
 LLM_MODEL = "llama-3.3-70b-versatile"
 
-# --- Kitten TTS (Local Library) Configuration ---
-TTS_MODEL_NAME = "KittenML/kitten-tts-nano-0.2"
-TTS_VOICE_ID = "expr-voice-2-m"
-TTS_SAMPLE_RATE = 24000
+# --- Piper TTS (Local Library) Configuration ---
+TTS_MODEL_PATH = str(ASSETS_DIR / "tts_models/en_US-lessac-medium.onnx")
+TTS_SAMPLE_RATE = 22050  # Piper's output sample rate
 
 # --- Video Generation Settings ---
 # Low-resolution for faster processing on VPS
@@ -43,5 +42,6 @@ REQUIRED_DIRS = [
     ASSETS_DIR, BACKGROUND_VIDEOS_DIR, BACKGROUND_MUSIC_DIR,
     TEMP_DIR, TEMP_AUDIO_DIR, TEMP_SUBTITLES_DIR, TEMP_VIDEOS_DIR, CONTENT_DIR,
 ]
+
 
 
