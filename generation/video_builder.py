@@ -24,36 +24,30 @@ def build_video(audio_path: Path, subtitles_path: Path, unique_id: str) -> Path 
     final_video_path = config.TEMP_VIDEOS_DIR / f"final_video_{unique_id}.mp4"
     final_video_path.parent.mkdir(parents=True, exist_ok=True)
     
+    # Comma-separated syntax for subtitle styling
     subtitle_style = f"Fontfile='{config.CAPTION_FONT_FILE}', Fontsize={config.CAPTION_FONT_SIZE}, PrimaryColour=&H00FFFFFF, BorderStyle=1, Outline=2, Shadow=1, Alignment=2, MarginV={int(config.VIDEO_HEIGHT * 0.15)}"
 
     command = [
         "ffmpeg", "-y",
-        # 1. Loop Background Video (Infinite)
-        "-stream_loop", "-1", "-i", str(background_video_path),
-        # 2. TTS Audio (Finite - This sets the timing)
-        "-i", str(audio_path),
-        # 3. Loop Background Music (Infinite)
-        "-stream_loop", "-1", "-i", str(background_music_path),
-        
+        "-stream_loop", "-1", "-i", str(background_video_path), # Loop video
+        "-i", str(audio_path),                                  # TTS (Master timing)
+        "-stream_loop", "-1", "-i", str(background_music_path), # Loop music
         "-filter_complex", (
-            # Video Chain: Crop, scale, burn subtitles
+            # Video Chain: Crop -> Scale -> Subtitles -> Force Pixel Format (Critical for FB)
             f"[0:v]crop=ih*9/16:ih,scale={config.VIDEO_WIDTH}:{config.VIDEO_HEIGHT},setsar=1,"
-            f"subtitles={subtitles_path}:force_style='{subtitle_style}'[v];"
+            f"subtitles={subtitles_path}:force_style='{subtitle_style}',"
+            f"format=yuv420p[v];"
             
-            # Audio Chain: 
-            # 1. Standardize sample rates and channels for both inputs
-            # 2. Apply volume adjustments
+            # Audio Chain: Force Stereo & Rate -> Volume -> Mix
             f"[1:a]aformat=sample_rates=44100:channel_layouts=stereo,volume={config.VOICE_VOLUME}[voice];"
             f"[2:a]aformat=sample_rates=44100:channel_layouts=stereo,volume={config.MUSIC_VOLUME}[music];"
-            
-            # 3. Mix them. duration=first means the mix stops when the Voice stops.
             "[voice][music]amix=inputs=2:duration=first:dropout_transition=0[a]"
         ),
         "-map", "[v]",
         "-map", "[a]",
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
         "-c:a", "aac", "-b:a", "128k", "-ac", "2",
-        "-shortest", # Cuts the video when the shortest stream (the mixed audio) ends
+        "-shortest",
         str(final_video_path)
     ]
 
@@ -72,5 +66,5 @@ def build_video(audio_path: Path, subtitles_path: Path, unique_id: str) -> Path 
         logging.error("--- Final FFmpeg command timed out after 3 minutes. ---")
         return None
     except Exception as e:
-        logging.error(f"Error: {e}")
+        logging.error(f"An unexpected error occurred during final FFmpeg build: {e}")
         return None
